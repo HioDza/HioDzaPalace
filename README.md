@@ -1,0 +1,2 @@
+# HioDzaPalace
+Nexora.res
