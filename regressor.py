@@ -1,8 +1,7 @@
 import streamlit as st
-from nexgml.gradient_supported import L2Regressor
+from models.L2R import L2Regressor
 from sklearn.model_selection import train_test_split
-from nexgml.amo.forlinear import mean_squared_error, mean_absolute_error
-from nexgml.metrics import r2_score
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 import time
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
