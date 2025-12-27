@@ -1,2 +1,2 @@
 # HioDzaPalace
-Nexora.res
+MEISNEXO
