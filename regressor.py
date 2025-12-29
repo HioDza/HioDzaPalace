@@ -1,5 +1,6 @@
 import streamlit as st
 from models.L2R import L2Regressor
+from nexgml.gradient_supported import BasicRegressor
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 import time
@@ -143,7 +144,7 @@ if uploaded_train_file is not None:
             else:
                 # Split train data
                 X_train, X_test, y_train, y_test = train_test_split(X_train_full, y_train_full, test_size=0.2, random_state=42)
-
+        
             models = L2Regressor()
 
             start_time = time.time()
@@ -162,6 +163,9 @@ if uploaded_train_file is not None:
             st.write(f"Rata-rata absolut kesalahan: {mae:.4f}")
             st.write(f"Skor akurasi: {r2:.4f}")
             st.write(f"Waktu pemrosesan: {elapsed:.2f} detik")
+
+            st.subheader("🥇 Fitur berpengaruh")
+            st.bar_chart(models.get_feature_importance().set_index('feature'))
 
             # Create predictions dataframe
             predictions_df = pd.DataFrame({

@@ -77,6 +77,7 @@ class L2Regressor:
     
         self.weights = None                                     # Model weights
         self.b = None                                           # Model bias
+        self.feature_importance_ = None                         # Feature importance after training
 
     def _add_intercept(self, X: np.ndarray) -> np.ndarray:
         """
@@ -177,6 +178,8 @@ class L2Regressor:
         else:
             self.b = np.zeros((1, n_classes), dtype=np.float32)
             self.weights = W
+
+        self.feature_importance_ = np.abs(self.weights).ravel()
 
         return self
 
@@ -286,3 +289,22 @@ class L2Regressor:
         for key, value in params.items():
             setattr(self, key, value)
         return self
+
+    def get_feature_importance(self) -> np.ndarray | None:
+        """
+        Get the feature importance scores after training.
+
+        ## Args:
+            **None**
+
+        ## Returns:
+            **np.ndarray or None**: *Feature importance scores or None if model not trained.*
+
+        ## Raises:
+            **None**
+        """
+        df = pd.DataFrame({
+            'feature': np.arange(len(self.feature_importance_)),
+            'importance': self.feature_importance_
+        })
+        return df.sort_values(by='importance', ascending=False).head()
