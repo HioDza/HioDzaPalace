@@ -12,13 +12,31 @@ st.set_page_config(page_title="Prediksi pola angka", layout='wide')
 st.title("📈 Prediksi pola angka dari data")
 st.caption("Ringan dan mudah untuk digunakan.")
 st.subheader("📂 Unggah Dataset (CSV)")
-st.info(f"⚠️ Batas ukuran file: 5 MB | Batas baris: 50,000 | Batas kolom: 50. Batasan diberikan demi menjaga kinerja aplikasi tetap optimal.")
+if st.button("ℹ️ Petunjuk Penggunaan"):
+    st.info("""
+    1. Siapkan dataset dalam format CSV dengan kolom fitur dan satu kolom target (angka).
+    2. Unggah file CSV untuk fitting model. Opsional: unggah file CSV lain untuk prediksi.
+    3. Pilih kolom target dan fitur yang diinginkan.
+    4. Klik 'Proses' untuk melatih model dan melihat hasil prediksi.
+    5. Unduh hasil prediksi sebagai file CSV.
+    
+    **Catatan:**
+    - Pastikan dataset tidak melebihi batas ukuran dan dimensi yang ditentukan.
+    - Gunakan fitur yang relevan untuk hasil terbaik.
+    - Setiap sesi dibatasi hingga 5 kali proses fitting untuk menjaga kinerja aplikasi.
+    """)
+if st.session_state['session_counter'] >= 5:
+    st.error("Batas sesi tercapai. Silakan muat ulang halaman untuk memulai sesi baru.")
+    st.stop()
+else:
+  st.info(f"⚠️ Batas ukuran file: 5 MB | Batas baris: 50,000 | Batas kolom: 50. Batasan diberikan demi menjaga kinerja aplikasi tetap optimal.")
+  
 uploaded_train_file = st.file_uploader("Pilih file CSV untuk fitting", type="csv")
 uploaded_test_file = st.file_uploader("Pilih file CSV untuk prediksi (opsional)", type="csv")
 
 # Initialize session counter in session state
 if 'session_counter' not in st.session_state:
-    st.session_state['session_counter'] = 0
+    st.session_state['session_counter'] = 1
 if uploaded_train_file is not None:
     # Check file size (5 MB limit)
     if uploaded_train_file.size > 5 * 1024 * 1024:
@@ -55,12 +73,12 @@ if uploaded_train_file is not None:
         feature_columns = [col for col in all_columns if col != target_column]
         st.info(f"Tidak ada fitur yang dipilih — menggunakan semua fitur non-target ({len(feature_columns)} kolom)")
     
-    if st.button("Process"):
+    if st.button("Proses"):
       st.info(f"Sisa batas sesi: {5 - st.session_state['session_counter']}")
       if st.session_state['session_counter'] < 5:
         st.session_state['session_counter'] += 1
 
-      if st.session_state['session_counter'] >= 5:
+      if st.session_state['session_counter'] - 5 == 0:
         st.error("Batas sesi tercapai. Silakan muat ulang halaman untuk memulai sesi baru.")
 
       else:
@@ -190,8 +208,4 @@ if uploaded_train_file is not None:
             st.info(f"TIPS: Kamu bisa mengunggah dataset yang bervariasi dan melihat perubahan hasil fitting model dengan memilih fitur yang berbeda.")
 
 else:
-    if st.session_state['session_counter'] >= 5:
-        st.error("Batas sesi tercapai. Silakan muat ulang halaman untuk memulai sesi baru.")
-
-    else:
         st.info("Unggah file CSV mu terlebih dahulu untuk proses fitting.")
