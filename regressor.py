@@ -32,7 +32,7 @@ uploaded_test_file = st.file_uploader("Pilih file CSV untuk prediksi (opsional)"
 
 # Initialize session counter in session state
 if 'session_counter' not in st.session_state:
-    st.session_state['session_counter'] = 1
+    st.session_state['session_counter'] = 0
 if uploaded_train_file is not None:
     # Check file size (5 MB limit)
     if uploaded_train_file.size > 5 * 1024 * 1024:
