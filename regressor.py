@@ -25,12 +25,8 @@ if st.button("ℹ️ Petunjuk Penggunaan"):
     - Gunakan fitur yang relevan untuk hasil terbaik.
     - Setiap sesi dibatasi hingga 5 kali proses fitting untuk menjaga kinerja aplikasi.
     """)
-if st.session_state['session_counter'] >= 5:
-    st.error("Batas sesi tercapai. Silakan muat ulang halaman untuk memulai sesi baru.")
-    st.stop()
-else:
-  st.info(f"⚠️ Batas ukuran file: 5 MB | Batas baris: 50,000 | Batas kolom: 50. Batasan diberikan demi menjaga kinerja aplikasi tetap optimal.")
-  
+st.info(f"⚠️ Batas ukuran file: 5 MB | Batas baris: 50,000 | Batas kolom: 50. Batasan diberikan demi menjaga kinerja aplikasi tetap optimal.")
+
 uploaded_train_file = st.file_uploader("Pilih file CSV untuk fitting", type="csv")
 uploaded_test_file = st.file_uploader("Pilih file CSV untuk prediksi (opsional)", type="csv")
 
