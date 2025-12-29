@@ -70,9 +70,10 @@ if uploaded_train_file is not None:
         st.info(f"Tidak ada fitur yang dipilih — menggunakan semua fitur non-target ({len(feature_columns)} kolom)")
     
     if st.button("Proses"):
-      st.info(f"Sisa batas sesi: {5 - st.session_state['session_counter']}")
       if st.session_state['session_counter'] < 5:
         st.session_state['session_counter'] += 1
+
+      st.info(f"Sisa batas sesi: {5 - st.session_state['session_counter']}")
 
       if st.session_state['session_counter'] - 5 == 0:
         st.error("Batas sesi tercapai. Silakan muat ulang halaman untuk memulai sesi baru.")
