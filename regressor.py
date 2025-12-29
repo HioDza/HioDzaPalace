@@ -190,4 +190,8 @@ if uploaded_train_file is not None:
             st.info(f"TIPS: Kamu bisa mengunggah dataset yang bervariasi dan melihat perubahan hasil fitting model dengan memilih fitur yang berbeda.")
 
 else:
-    st.info("Unggah file CSV mu terlebih dahulu untuk proses fitting.")
+    if st.session_state['session_counter'] >= 5:
+        st.error("Batas sesi tercapai. Silakan muat ulang halaman untuk memulai sesi baru.")
+
+    else:
+        st.info("Unggah file CSV mu terlebih dahulu untuk proses fitting.")
