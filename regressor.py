@@ -60,7 +60,7 @@ if uploaded_train_file is not None:
       if st.session_state['session_counter'] < 5:
         st.session_state['session_counter'] += 1
 
-      if st.session_state['session_counter'] > 5:
+      if st.session_state['session_counter'] >= 5:
         st.error("Batas sesi tercapai. Silakan muat ulang halaman untuk memulai sesi baru.")
 
       else:
