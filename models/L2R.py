@@ -30,7 +30,7 @@ class L2Regressor:
       Predict using weights from training session.
 
       **score(X_test, y_test)**: *Return float*
-      Calculate model classification accuracy.
+      Calculate model R^2 score.
 
       **get_params(deep)**: *Return dict*
       Return model's parameter.
@@ -142,7 +142,8 @@ class L2Regressor:
         Y = Y.reshape(-1, 1)
         n_samples, n_features = X.shape
         n_samples_y, n_classes = Y.shape
-        assert n_samples == n_samples_y, "Number of samples in X and Y must match. Error"
+        if n_samples != n_samples_y:
+            raise ValueError("Number of samples in X and Y must match. Error")
 
         # Augment X for intercept
         if self.intercept:
@@ -179,7 +180,7 @@ class L2Regressor:
             self.b = np.zeros((1, n_classes), dtype=np.float32)
             self.weights = W
 
-        self.feature_importance_ = np.abs(self.weights).ravel()
+        self.feature_importance_ = self.weights.ravel()
 
         return self
 
@@ -223,9 +224,12 @@ class L2Regressor:
         n_samples, n_features = X.shape
         
         # Check if the model has been fitted
-        assert self.weights is not None, "Model not fitted, please call fit() first."
-        assert n_features == self.weights.shape[0], f"Feature mismatch: got {n_features}, expected {self.weights.shape[0]}"
+        if self.weights is None:
+            raise ValueError("Model not fitted, please call fit() first.")
         
+        if n_features != self.weights.shape[0]:
+            raise ValueError(f"Feature mismatch: got {n_features}, expected {self.weights.shape[0]}")
+
         # Linear combination: $\hat{y} = XW + b$
         preds = X @ self.weights + self.b
         return preds
@@ -304,7 +308,7 @@ class L2Regressor:
             **None**
         """
         df = pd.DataFrame({
-            'feature': np.arange(len(self.feature_importance_)),
+            'feature_index': np.arange(len(self.feature_importance_)),
             'importance': self.feature_importance_
         })
         return df.sort_values(by='importance', ascending=False).head()

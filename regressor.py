@@ -53,7 +53,9 @@ if uploaded_train_file is not None:
 
     data_test = uploaded_test_file and pd.read_csv(uploaded_test_file) or None
     if data_test is not None:
-        assert data_train.shape[1] == data_test.shape[1], "Dataset fit dan prediksi harus memiliki jumlah kolom yang sama."
+        if data_train.shape[1] != data_test.shape[1]:
+            st.error("Dataset fit dan prediksi harus memiliki jumlah kolom yang sama.")
+            st.stop()
 
     scaler_x = StandardScaler()
     scaler_y = StandardScaler()
@@ -75,6 +77,7 @@ if uploaded_train_file is not None:
 
       if st.session_state['session_counter'] - 5 == 0:
         st.error("Batas sesi tercapai. Silakan muat ulang halaman untuk memulai sesi baru.")
+        st.stop()
 
       else:
 
@@ -104,7 +107,7 @@ if uploaded_train_file is not None:
                     else:
                         # Text: TF-IDF
                         vec = vectorizers.get(col)
-                        vec = TfidfVectorizer() if vec is None else vec
+                        vec = TfidfVectorizer(max_features=300) if vec is None else vec
                         X_text = vec.fit_transform(data_train[col].astype(str)).toarray()
                         vectorizers[col] = vec
                         parts.append(X_text)
@@ -126,6 +129,9 @@ if uploaded_train_file is not None:
             y_train_full = scaler_y.fit_transform(y.reshape(-1, 1)).ravel()
 
             if data_test is not None:
+                if target_column not in data_test.columns:
+                    st.error("Kolom target tidak ditemukan di dataset prediksi.")
+                    st.stop()
                 # Use provided test data
                 # Process test data features
                 parts_test = []
@@ -175,11 +181,11 @@ if uploaded_train_file is not None:
             st.subheader("📊 Metrik evaluasi")
             st.write(f"Rata-rata kuadrat kesalahan: {mse:.4f}")
             st.write(f"Rata-rata absolut kesalahan: {mae:.4f}")
-            st.write(f"Skor akurasi: {r2:.4f}")
+            st.write(f"Skor R^2: {r2:.4f}")
             st.write(f"Waktu pemrosesan: {elapsed:.2f} detik")
 
             st.subheader("🥇 Fitur berpengaruh")
-            st.bar_chart(models.get_feature_importance().set_index('feature'))
+            st.bar_chart(models.get_feature_importance().set_index('feature_index'))
 
             # Create predictions dataframe
             predictions_df = pd.DataFrame({
