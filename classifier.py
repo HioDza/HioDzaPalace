@@ -3,11 +3,13 @@ import pandas as pd
 import numpy as np
 import time
 import pickle
+import matplotlib.pyplot as plt
+import seaborn as sns
 from io import BytesIO
 
-from models.L2R import L2Regressor
+from models.L2C import L2Classifier
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from pandas.api.types import is_string_dtype
@@ -23,7 +25,7 @@ def load_and_validate_data(uploaded_train_file, uploaded_test_file):
             st.error("Ukuran file melebihi batas 5 MB. Silakan unggah file yang lebih kecil.", icon='⚠️')
             return None, None
 
-        data_train = pd.read_csv(uploaded_train_file, encoding='cp1252', encoding_errors='replace')
+        data_train = pd.read_csv(uploaded_train_file, encoding='cp1252')
 
         # Check dataset dimensions (50,000 rows, 50 columns)
         if data_train.shape[0] > 50000:
@@ -35,7 +37,7 @@ def load_and_validate_data(uploaded_train_file, uploaded_test_file):
 
         data_test = None
         if uploaded_test_file is not None:
-            data_test = pd.read_csv(uploaded_test_file, encoding='cp1252', encoding_errors='replace')
+            data_test = pd.read_csv(uploaded_test_file, encoding='cp1252')
             if data_train.shape[1] != data_test.shape[1]:
                 st.error("Dataset fit dan prediksi harus memiliki jumlah kolom yang sama.", icon='⚠️')
                 return None, None
@@ -103,12 +105,10 @@ def preprocess_features(data_train, data_test, feature_columns, target_column, t
 
     # Horizontally stack all parts into X
     X = np.hstack(parts)
-    y = pd.to_numeric(data_train[target_column], errors='coerce').fillna(0).values
+    y = data_train[target_column].fillna('unknown').values
 
-    scaler_x = StandardScaler()
-    scaler_y = StandardScaler()
-    X_scaled = scaler_x.fit_transform(X)
-    y_scaled = scaler_y.fit_transform(y.reshape(-1, 1)).ravel()
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X)
 
     _progress_bar.progress(30)
 
@@ -138,50 +138,55 @@ def preprocess_features(data_train, data_test, feature_columns, target_column, t
                 parts_test.append(col_vals_test)
 
         X_test = np.hstack(parts_test)
-        X_test = scaler_x.transform(X_test)
-        y_test = pd.to_numeric(data_test[target_column], errors='coerce').fillna(0).values
-        y_test = scaler_y.transform(y_test.reshape(-1, 1)).ravel()
+        X_test = scaler.transform(X_test)
+        y_test = data_test[target_column].fillna('unknown').values
 
-        X_train, y_train = X_scaled, y_scaled
+        X_train, y_train = X_scaled, y
     else:
         # Split train data
-        X_train, X_test, y_train, y_test = train_test_split(X_scaled, y_scaled, test_size=test_size, random_state=42)
+        X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=test_size, random_state=42)
 
     _progress_bar.progress(50)
-    return X_train, X_test, y_train, y_test, scaler_x, scaler_y
+    return X_train, X_test, y_train, y_test, scaler
 
-def train_and_evaluate(X_train, y_train, X_test, y_test, scaler_y, alpha, fit_intercept, _progress_bar):
+def train_and_evaluate(X_train, y_train, X_test, y_test, alpha, fit_intercept, _progress_bar):
     """Train model and evaluate performance."""
     _progress_bar.progress(60)
 
-    model = L2Regressor(alpha=alpha, fit_intercept=fit_intercept)
+    model = L2Classifier(alpha=alpha, fit_intercept=fit_intercept)
 
     start_time = time.time()
     model.fit(X_train, y_train)
     y_pred = model.predict(X_test)
-    y_pred_original = scaler_y.inverse_transform(y_pred.reshape(-1, 1)).ravel()
-    y_test_original = scaler_y.inverse_transform(y_test.reshape(-1, 1)).ravel()
     elapsed = time.time() - start_time
 
     _progress_bar.progress(80)
-    return model, y_pred_original, y_test_original, elapsed
+    return model, y_pred, elapsed
 
-def display_results(y_test_original, y_pred_original, model, elapsed, _progress_bar):
+def display_results(y_test, y_pred, model, elapsed, _progress_bar):
     """Display evaluation results."""
     _progress_bar.progress(90)
 
-    mse = mean_squared_error(y_test_original, y_pred_original)
-    mae = mean_absolute_error(y_test_original, y_pred_original)
-    r2 = r2_score(y_test_original.astype(np.float32), y_pred_original)
+    accuracy = accuracy_score(y_test, y_pred)
+    cm = confusion_matrix(y_test, y_pred)
+    report = classification_report(y_test, y_pred)
 
     st.subheader("📊 Metrik evaluasi")
     col1, col2 = st.columns(2)
     with col1:
-        st.metric("MSE (Mean Squared Error)", f"{mse:.4f}")
-        st.metric("MAE (Mean Absolute Error)", f"{mae:.4f}")
-    with col2:
-        st.metric("R² Score", f"{r2:.4f}")
+        st.metric("Akurasi", f"{accuracy:.4f}")
         st.metric("Waktu Pemrosesan", f"{elapsed:.2f} detik")
+    with col2:
+        st.text("Classification Report:")
+        st.code(report)
+
+    # Confusion Matrix Visualization
+    st.subheader("📊 Confusion Matrix")
+    fig, ax = plt.subplots(figsize=(8, 6))
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', ax=ax)
+    ax.set_xlabel('Predicted')
+    ax.set_ylabel('Actual')
+    st.pyplot(fig)
 
     st.subheader("🥇 Fitur berpengaruh")
     feature_importance = model.get_feature_importance()
@@ -190,8 +195,8 @@ def display_results(y_test_original, y_pred_original, model, elapsed, _progress_
 
     # Create predictions dataframe
     predictions_df = pd.DataFrame({
-        'Actual': y_test_original,
-        'Predicted': y_pred_original
+        'Actual': y_test,
+        'Predicted': y_pred
     })
 
     st.subheader("📈 Pratinjau Prediksi")
@@ -215,12 +220,12 @@ def display_results(y_test_original, y_pred_original, model, elapsed, _progress_
 
 # ===== STREAMLIT APP =====
 
-st.set_page_config(page_title="Prediksi pola angka",
-                   layout='wide',
+st.set_page_config(page_title="Prediksi label data", 
+                   layout='wide', 
                    initial_sidebar_state='collapsed',
                    page_icon="📈",
                    menu_items={
-                       'About': "Aplikasi prediksi pola angka menggunakan model yang berbasis regulasi, yaitu ridge atau juga dikenal sebagai L2."
+                       'About': "Aplikasi prediksi label data menggunakan model yang berbasis regulasi, yaitu ridge atau juga dikenal sebagai L2."
                               }
                        )
 
@@ -241,17 +246,17 @@ st.sidebar.info("""
                 - **Ukuran data tes** menentukan proporsi data yang digunakan untuk pengujian jika tidak ada file tes yang diunggah.
                 """, icon="ℹ️")
 
-st.title("📈 Prediksi pola angka dari data")
+st.title("📈 Prediksi label dari data")
 st.caption("Ringan dan mudah untuk digunakan.")
 st.subheader("📂 Unggah Dataset (CSV)")
 if st.button("Petunjuk Penggunaan", icon="ℹ️"):
     st.info("""
-    1. Siapkan dataset dalam format CSV dengan kolom fitur dan satu kolom target (angka).
+    1. Siapkan dataset dalam format CSV dengan kolom fitur dan satu kolom target.
     2. Unggah file CSV untuk fitting model. Opsional: unggah file CSV lain untuk prediksi.
     3. Pilih kolom target dan fitur yang diinginkan.
     4. Klik 'Proses' untuk melatih model dan melihat hasil prediksi.
     5. Unduh hasil prediksi sebagai file CSV.
-
+    
     **Catatan:**
     - Pastikan dataset tidak melebihi batas ukuran dan dimensi yang ditentukan.
     - Gunakan fitur yang relevan untuk hasil terbaik.
@@ -272,8 +277,7 @@ if save_model and 'trained_model' in st.session_state:
         'model': st.session_state['trained_model'],
         'vectorizers': st.session_state.get('vectorizers', {}),
         'encoders': st.session_state.get('encoders', {}),
-        'scaler_x': st.session_state.get('scaler_x'),
-        'scaler_y': st.session_state.get('scaler_y'),
+        'scaler': st.session_state.get('scaler'),
         'feature_columns': st.session_state.get('feature_columns'),
         'target_column': st.session_state.get('target_column')
     }
@@ -294,8 +298,7 @@ if load_model is not None:
         st.session_state['trained_model'] = model_data['model']
         st.session_state['vectorizers'] = model_data.get('vectorizers', {})
         st.session_state['encoders'] = model_data.get('encoders', {})
-        st.session_state['scaler_x'] = model_data.get('scaler_x')
-        st.session_state['scaler_y'] = model_data.get('scaler_y')
+        st.session_state['scaler'] = model_data.get('scaler')
         st.session_state['feature_columns'] = model_data.get('feature_columns')
         st.session_state['target_column'] = model_data.get('target_column')
         st.sidebar.success("Model loaded successfully!")
@@ -304,44 +307,44 @@ if load_model is not None:
 
 if uploaded_train_file is not None:
     data_train, data_test = load_and_validate_data(uploaded_train_file, uploaded_test_file)
-    if data_train is None:
-        st.stop()
 
-    display_data_preview(data_train)
-    target_column, feature_columns = configure_features_and_target(data_train)
+    if data_train is not None:
+        display_data_preview(data_train)
 
-    if st.button("Proses", icon="🚀"):
+        target_column, feature_columns = configure_features_and_target(data_train)
 
-        if st.session_state['session_counter'] > 5:
-            st.error("Batas sesi tercapai. Silakan muat ulang halaman untuk memulai sesi baru.", icon='⚠️')
-            st.stop()
-        
-        st.info(f"Sisa batas sesi: {5 - st.session_state['session_counter']}", icon="ℹ️")
+        if st.button("Proses", icon="🚀"):
 
-        progress_bar = st.progress(0)
-        try:
-            X_train, X_test, y_train, y_test, scaler_x, scaler_y = preprocess_features(
-                data_train, data_test, feature_columns, target_column, test_size, progress_bar
-            )
+            if st.session_state['session_counter'] > 5:
+                st.error("Batas sesi tercapai. Silakan muat ulang halaman untuk memulai sesi baru.", icon="⚠️")
+                st.stop()
+            
+            st.info(f"Sisa batas sesi: {5 - st.session_state['session_counter']}", icon="ℹ️")
 
-            model, y_pred_original, y_test_original, elapsed = train_and_evaluate(
-                X_train, y_train, X_test, y_test, scaler_y, alpha, fit_intercept, progress_bar
-            )
+            with st.spinner("Memproses data..."):
+                progress_bar = st.progress(0)
 
-            # Store model and related data in session state
-            st.session_state['trained_model'] = model
-            st.session_state['scaler_x'] = scaler_x
-            st.session_state['scaler_y'] = scaler_y
-            st.session_state['feature_columns'] = feature_columns
-            st.session_state['target_column'] = target_column
+                try:
+                    X_train, X_test, y_train, y_test, scaler = preprocess_features(
+                        data_train, data_test, feature_columns, target_column, test_size, progress_bar
+                    )
 
-            display_results(y_test_original, y_pred_original, model, elapsed, progress_bar)
+                    model, y_pred, elapsed = train_and_evaluate(
+                        X_train, y_train, X_test, y_test, alpha, fit_intercept, progress_bar
+                    )
 
-            st.session_state['session_counter'] += 1
+                    display_results(y_test, y_pred, model, elapsed, progress_bar)
 
-        except Exception as e:
-            st.error(f"Error during processing: {str(e)}", icon='⚠️')
-            progress_bar.empty()
+                    # Store model in session state
+                    st.session_state['trained_model'] = model
+                    st.session_state['scaler'] = scaler
+                    st.session_state['feature_columns'] = feature_columns
+                    st.session_state['target_column'] = target_column
 
+                    st.session_state['session_counter'] += 1
+
+                except Exception as e:
+                    st.error(f"Error during processing: {str(e)}", icon='⚠️')
+                    progress_bar.empty()
 else:
-    st.info("Unggah file CSV mu terlebih dahulu untuk proses fitting.", icon="ℹ️")
+    st.info("Unggah file CSV mu terlebih dahulu untuk proses fitting.", icon="‼️")
