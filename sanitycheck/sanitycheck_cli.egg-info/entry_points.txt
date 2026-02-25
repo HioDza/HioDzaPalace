@@ -1,0 +1,2 @@
+[console_scripts]
+sanitycheck = sanitycheck.__main__:main

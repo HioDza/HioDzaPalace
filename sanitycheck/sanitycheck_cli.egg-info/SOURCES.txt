@@ -1,0 +1,11 @@
+README.md
+setup.py
+sanitycheck/__init__.py
+sanitycheck/__main__.py
+sanitycheck/core.py
+sanitycheck_cli.egg-info/PKG-INFO
+sanitycheck_cli.egg-info/SOURCES.txt
+sanitycheck_cli.egg-info/dependency_links.txt
+sanitycheck_cli.egg-info/entry_points.txt
+sanitycheck_cli.egg-info/requires.txt
+sanitycheck_cli.egg-info/top_level.txt
