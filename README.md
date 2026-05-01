@@ -32,6 +32,8 @@ sancheck [csv_dir] [target_column_name] [n_feature_per_plot or 'all']
 ![Heatmap Example](assets/heatmap_correlation(all_features).png)
 
 ### 💬 Terminal output
+
+```bash
 📊 Dataset Summary
 - Valid numeric columns: 5
 - Ignored non-numeric columns: 2
@@ -69,7 +71,7 @@ sancheck [csv_dir] [target_column_name] [n_feature_per_plot or 'all']
   - row 7: score=0.555, invalid=False
 
 📌 Distribution and interpretation
-- High entropy means the distribution is more even/complex; it's not automatically 'noise', it can also be multimodal.
+- High entropy means the distribution is more even/comple; it's not automatically 'noise', it can also be multimodal.
 - High spread score means the data is more dispersed robustly compared to its central tendency.
 
   Top entropy:
@@ -120,6 +122,7 @@ sancheck [csv_dir] [target_column_name] [n_feature_per_plot or 'all']
 - avg spread score: 0.528
 
 ⏱️ Elapsed time: 6.26 seconds (including plot visualization)
+```
 
 ## Interpretation tips
 - Higher clarity scores indicate cleaner numeric data
