@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sancheck"
-version = "0.1.4"
+version = "0.1.5"
 description = "Minimal-tuning CLI tool for data stats and clarity checks"
 readme = "README.md"
 requires-python = ">=3.8"

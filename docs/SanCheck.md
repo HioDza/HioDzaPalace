@@ -26,9 +26,11 @@ The metrics checked by SanCheck are as follows:
 
 - **Shapiro-Wilk and Kolmogorov-Smirnov scores**: Results of tests of normality of distribution from raw p-values.
 
-- **Normality score**: Based on kurtosis and skewness using '1 - (0.5 * skew_score + 0.5 * kurt_score)' with skew_score = np.tanh(skew_mean / 2) and kurt_score = np.tanh(kurt_mean / 5). The mean is taken from the kurtosis or skewness scores of all features.
+- **Structure normality**: Based on kurtosis and skewness using '1 - (0.5 * skew_score + 0.5 * kurt_score)' with skew_score = np.tanh(skew_mean / 2) and kurt_score = np.tanh(kurt_mean / 5). The mean is taken from the kurtosis or skewness scores of all features.
 
 - **Cleanliness score**: Taken from the weighted accumulation of the invalid value ratio (0.30), inconsistent column type (0.20), abnormal column similarity (0.20), and row problem severity (0.30).
+
+- **Linear signal**: Calculated using MI (Mutual Information) and ANOVA (Analysis of Variance) via the formula 'norm_f_score / (mean_mi + ε)' with norm_f_score = tanh(mean(f_scores) / 10).
 
 ## Arguments
 
@@ -36,7 +38,7 @@ The metrics checked by SanCheck are as follows:
 
 - **target**: Target column name (classification only).
 
-- **slice**: Number of columns per chunk for plotting, or 'all'.
+- **--plot-chunk**: Number of columns per chunk for plotting, or 'all'.
 
 - **--download-plot**: Download plots as PNG files.
 
@@ -45,3 +47,5 @@ The metrics checked by SanCheck are as follows:
 - **--metrics-info**: Show detailed explanation of metrics.
 
 - **--get-json**: Output the report as JSON instead of printing to console.
+
+- **--mute**: Mute safeguards and automatically fallback to the safest option.

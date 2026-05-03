@@ -1,7 +1,10 @@
+from . import _check_func as Check
+from . import core
+from . import _configs as Config
+
 import seaborn as sns
 import matplotlib.pyplot as plt
 import numpy as np
-from . import _check_func as Check
 import pandas as pd
 
 def plot_numeric_boxplot(df: pd.DataFrame, numeric_cols: list[str], title_suffix: str = "", download_plot: bool = False):
@@ -10,6 +13,7 @@ def plot_numeric_boxplot(df: pd.DataFrame, numeric_cols: list[str], title_suffix
         return
 
     plot_df = df[numeric_cols].apply(pd.to_numeric, errors="coerce")
+
     spread_df = Check.distribution_report(df, numeric_cols, 1e-12, "fd").set_index("column")
     ordered_cols = spread_df.sort_values("spread_score", ascending=False).index.tolist()
     plot_df = plot_df[ordered_cols]
@@ -24,7 +28,8 @@ def plot_numeric_boxplot(df: pd.DataFrame, numeric_cols: list[str], title_suffix
     plt.ylabel("Column")
     plt.tight_layout()
     if download_plot:
-      plt.savefig(f"boxplot_numeric_columns{title_suffix.replace(' ', '_')}.png", dpi=300) if download_plot else None
+      plt.savefig(f"boxplot_numeric_columns{title_suffix.replace(' ', '_')}.png", dpi=300)
+      return
     plt.show()
 
 def plot_numeric_heatmap(df: pd.DataFrame, numeric_cols: list[str], title_suffix: str = "", download_plot: bool = False):
@@ -59,12 +64,35 @@ def plot_numeric_heatmap(df: pd.DataFrame, numeric_cols: list[str], title_suffix
     plt.tight_layout()
     if download_plot:
       plt.savefig(f"heatmap_correlation{title_suffix.replace(' ', '_')}.png", dpi=300)
+      return
     plt.show()
 
 def plots(df: pd.DataFrame, n_slice: int, download_plot: bool = False):
     if df.empty:
         print("⚠️ No data available for plotting.")
         return
+    
+    if df.shape[1] > 50 or (isinstance(n_slice, int) and n_slice > 50):
+        core.WARNINGS.store(
+            {
+                "type": "UserWarning",
+                "message": f"Too many features to be plotted ({df.shape[1]}), plot may be too ambiguous.",
+                "where": "plots function"
+            }
+        )
+        status = "n"
+        if not Config.MUTE:
+            status = input(f"Too many features to be plotted ({df.shape[1]}), plot may be too ambiguous. \nContinue with plotting? (y/n): ").strip().lower()
+        
+        if status == "n":
+            return
+        
+        elif status == "y":
+            pass
+
+        else:
+            print("Invalid input, skipping plotting process.")
+            return
 
     if n_slice == "all":
         plot_numeric_boxplot(df, list(df.columns), title_suffix="(all features)", download_plot=download_plot)

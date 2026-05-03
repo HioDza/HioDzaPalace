@@ -1,3 +1,5 @@
+from . import _configs as Config
+
 import argparse
 import pandas as pd
 import numpy as np
@@ -23,7 +25,7 @@ def numeric_ratio(series: pd.Series) -> float:
     return float(coerced.notna().mean())
 
 
-def get_numeric_valid_columns(df: pd.DataFrame, thresh: float):
+def get_numeric_valid_columns(df: pd.DataFrame, thresh: float=Config.NUMERIC_VALID_RATIO):
     return [c for c in df.columns if numeric_ratio(df[c]) >= thresh]
 
 
@@ -37,6 +39,24 @@ def _to_numeric_with_mask(series: pd.Series):
     bad_parse_mask = coerced.isna() & original.notna()
 
     return coerced, finite_mask, nan_mask, bad_parse_mask
+
+def spread_interpretation(score: float) -> str:
+    if score < 0.25:
+        return "compact / small variation"
+    if score < 0.50:
+        return "moderate / moderate variation"
+    if score < 0.75:
+        return "wide / large variation"
+    return "very wide / data very spread"
+
+def entropy_interpretation(score: float) -> str:
+    if score < 0.25:
+        return "very concentrated / single value or dominant mode"
+    if score < 0.50:
+        return "fairly concentrated / some structural dominance"
+    if score < 0.75:
+        return "mixed / moderate spread"
+    return "very spread / more uniform or complex distribution"
 
 
 def _label_from_score(score: float, ascending=False, no_color=False) -> str:
@@ -67,7 +87,13 @@ def _label_from_score(score: float, ascending=False, no_color=False) -> str:
         if score >= 0.25:
             return "low"
         return "very low"
+
+def _infer_task(target: pd.Series) -> str:
+    s = np.asarray(target.dropna())
+    if np.issubdtype(s.dtype, np.floating) or np.issubdtype(s.dtype, np.complexfloating):
+        return "regression"
     
+    return "classification"
 
 class InfoAction(argparse.Action):
     def __init__(self, option_strings, dest, nargs=0, **kwargs):
@@ -83,3 +109,12 @@ class ReportEncoder(json.JSONEncoder):
         if isinstance(obj, pd.DataFrame):
             return obj.to_dict(orient="records")
         return super().default(obj)
+
+class Container:
+    def __init__(self, name: str, description: str):
+        self.name = name
+        self.description = description
+        self.data = []
+
+    def store(self, a):
+        self.data.append(a)

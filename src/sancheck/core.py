@@ -2,6 +2,7 @@ from . import _helper as Help
 from . import _check_func as Check
 from . import _plotting as PLT
 from . import _info as Info
+from . import _configs as Config
 
 import argparse
 import sys
@@ -15,12 +16,10 @@ import json
 from rich import print
 
 # =============================
-# Configuration
+# Containers
 # =============================
-NUMERIC_VALID_RATIO = 0.95
-ENTROPY_BINS = "fd"
-DEFAULT_SIM_THRESHOLD = 0.95
-EPS = 1e-12
+EXCEPTIONS = Help.Container("Exceptions", "Exceptions that occur during checks and analyses")
+WARNINGS = Help.Container("Warnings", "Warnings that occur during checks and analyses")
 
 # =============================
 # Clarity score
@@ -61,7 +60,6 @@ class CleanlinessBreakdown:
 
 
 def cleanliness_breakdown(
-    df: pd.DataFrame,
     nan_inf_df: pd.DataFrame,
     type_df: pd.DataFrame,
     sim_severity: float,
@@ -87,24 +85,32 @@ def cleanliness_breakdown(
 # =============================
 # Analysis
 # =============================
-def analysis(df: pd.DataFrame, 
+def analyze(df: pd.DataFrame, 
              numeric_cols: list[str],
              target: str,
+             task: str,
              json_output: bool = False) -> dict:
-    sim_pairs, sim_cols, sim_severity = Check.abnormal_similarity_report(df, numeric_cols, DEFAULT_SIM_THRESHOLD, EPS)
+    sim_pairs, sim_cols, sim_severity = Check.abnormal_similarity_report(df, numeric_cols)
     nan_inf_df = Check.nan_inf_column_report(df, numeric_cols)
     type_df = Check.inconsistent_type_report(df, numeric_cols, thresh=0.05)
-    normality = Check.compute_normality(df, numeric_cols)
-    row_df, row_scores, row_severity = Check.problematic_row_report(df, numeric_cols, EPS)
-    dist_df = Check.distribution_report(df, numeric_cols, EPS, ENTROPY_BINS)
-    cleanliness = cleanliness_breakdown(df, nan_inf_df, type_df, sim_severity, row_severity)
+    structure_normality = Check.compute_normality(df, numeric_cols)
+    row_df, row_scores, row_severity = Check.problematic_row_report(df, numeric_cols)
+    dist_df = Check.distribution_report(df, numeric_cols)
+    cleanliness = cleanliness_breakdown(nan_inf_df, type_df, sim_severity, row_severity)
     sparsity = Check.sparsity_ratio(df, numeric_cols)
     vif = Check.compute_vif(df, numeric_cols)
-    override_rat = Check.class_override_ratio(df, numeric_cols, target)
-    imbalance_rat = Check.class_imbalance_ratio(df, target)
+    linear_signal = Check.linear_signal(df, numeric_cols, target, task)
+
+    if task == 'classification':
+        override_rat = Check.class_override_ratio(df, numeric_cols, target)
+        imbalance_rat = Check.class_imbalance_ratio(df, target)
+
+    else:
+        override_rat = None
+        imbalance_rat = None
 
     shapiro = {c: Check.shapiro_per_feature(df[c]) for c in numeric_cols}
-    ks = {c: Check.ks_per_feature(df[c], EPS) for c in numeric_cols}
+    ks = {c: Check.ks_per_feature(df[c]) for c in numeric_cols}
     
     if not json_output:
         return {
@@ -124,16 +130,17 @@ def analysis(df: pd.DataFrame,
             "cleanliness_breakdown": cleanliness,
             "sparsity_ratio": sparsity,
             "vif": vif,
+            "linear_signal": linear_signal,
             "class_override_ratio": override_rat,
             "class_imbalance_ratio": imbalance_rat,
-            "normality_score": normality,
+            "structure_normality": structure_normality,
             "ks_scores": ks,
             "shapiro_scores": shapiro,
         }
 
     else:
         return {
-            "similarity_report": {
+            "feature_similarity_report": {
                 "pairs": sim_pairs.to_dict(orient="records"),
                 "affected_columns": sim_cols,
                 "severity": sim_severity,
@@ -159,11 +166,14 @@ def analysis(df: pd.DataFrame,
                 "mean": vif["mean"],
                 "per_feature": {k: v if not np.isinf(v) else None for k, v in vif["per_feature"].items()},
             },
+            "linear_signal": linear_signal,
             "class_override_ratio": override_rat,
             "class_imbalance_ratio": imbalance_rat,
-            "normality_score": normality,
+            "structure_normality": structure_normality,
             "ks_scores": ks,
             "shapiro_scores": shapiro,
+            "exceptions": EXCEPTIONS.data,
+            "warnings": WARNINGS.data
         }
 
 # =============================
@@ -174,22 +184,34 @@ def main():
     parser = argparse.ArgumentParser(
         description="SanCheck — data sanity checker"
     )
-    parser.add_argument("csv", 
-                        help="Path to CSV file")
-    
-    parser.add_argument("target", 
-                        help="Target column name (classification only)")
+    parser.add_argument(
+                        "csv", 
+                        help="Path to CSV file"
+                        )
     
     parser.add_argument(
-        "slice",
+                        "target", 
+                        help="Target column name"
+                        )
+    
+    parser.add_argument(
+        "--task",
+        choices=["classification", "regression", "auto"],
+        default="auto",
+        help="Type of machine learning task (default: auto)"
+    )
+    
+    parser.add_argument(
+        "--plot-chunk",
+        default='all',
         type=Help.parse_slice_arg,
-        help="Number of columns per chunk for plotting, or 'all'",
+        help="Number of columns per chunk for plotting, or 'all' (default: 'all')",
     )
     
     parser.add_argument(
         "--download-plot",
         action="store_true",
-        help="Download plots as PNG files",
+        help="Download plots as PNG files (no plot visualization)",
     )
 
     parser.add_argument(
@@ -210,14 +232,23 @@ def main():
         action="store_true",
         help="Output the report as JSON instead of printing to console"
     )
+
+    parser.add_argument(
+        "--mute",
+        action="store_true",
+        help="Mute safeguards and automatically fallback to the safest option"
+    )
     
     args = parser.parse_args()
+
+    Config.MUTE = args.mute
 
     if args.metrics_info:
         Info.metrics()
 
     try:
         df = pd.read_csv(args.csv)
+
     except Exception as e:
         print(f"❌ Failed to load the CSV file: {e}")
         sys.exit(1)
@@ -231,7 +262,13 @@ def main():
         print(f"❌ Failed to process target. {target} column is not exist in the DataFrame.")
         sys.exit(1)
 
-    numeric_cols = Help.get_numeric_valid_columns(df, thresh=NUMERIC_VALID_RATIO)
+    if args.task == "auto":
+        task = Help._infer_task(df[target])
+
+    else:
+        task = args.task
+
+    numeric_cols = Help.get_numeric_valid_columns(df)
     ignored_cols = [c for c in df.columns if c not in numeric_cols]
 
     if not numeric_cols:
@@ -239,24 +276,28 @@ def main():
         print(f"Non-numeric columns / ignored: {', '.join(ignored_cols) if ignored_cols else '-'}")
         sys.exit(1)
 
+    # JSON output
     get_json = args.get_json
 
-    # JSON output
     if get_json:
         with open("sancheck_report.json", "w") as f:
-            json.dump(analysis(df, numeric_cols, target, True), f, cls=Help.ReportEncoder, indent=4)
+            json.dump(analyze(df, numeric_cols, target, task, True), f, cls=Help.ReportEncoder, indent=4)
         print("✅ Report saved to sancheck_report.json")
+        # plotting
+        if not args.no_plot:
+            PLT.plots(df, n_slice=args.plot_chunk, download_plot=args.download_plot)
         return
 
     # Reports
-    analysis_results = analysis(df, numeric_cols, target)
+    analysis_results = analyze(df, numeric_cols, target, task, False)
 
     sim_pairs = analysis_results["similarity_report"]["pairs"]
     sim_cols = analysis_results["similarity_report"]["affected_columns"]
     sim_severity = analysis_results["similarity_report"]["severity"]
     nan_inf_df = analysis_results["nan_inf_report"]
     type_df = analysis_results["type_inconsistency_report"]
-    normality = analysis_results["normality_score"]
+    structure_normality = analysis_results["structure_normality"]
+    linear_signal = analysis_results["linear_signal"]
     row_df = analysis_results["problematic_rows_report"]["rows"]
     row_scores = analysis_results["problematic_rows_report"]["scores"]
     row_severity = analysis_results["problematic_rows_report"]["severity"]
@@ -269,10 +310,6 @@ def main():
     shapiro = analysis_results["shapiro_scores"]
     ks = analysis_results["ks_scores"]
 
-    # plotting
-    if not args.no_plot:
-        PLT.plots(df, n_slice=args.slice, download_plot=args.download_plot)
-
     # summary
     top_entropy = dist_df.sort_values("entropy", ascending=False).head(5)
     top_spread = dist_df.sort_values("spread_score", ascending=False).head(5)
@@ -282,6 +319,7 @@ def main():
     print("\n[bold cyan]📊 Dataset Summary[/bold cyan]")
     print(f"- Valid numeric columns: {len(numeric_cols)}")
     print(f"- Ignored non-numeric columns: {len(ignored_cols)}")
+    print(f"- Inferred task type: {task}")
 
     print("\n[cyan]📌 Column problems[/cyan]")
     print(f"- Column with NaN/Inf/invalid: {len(nan_inf_df[nan_inf_df['invalid_ratio'] > 0])}")
@@ -299,7 +337,7 @@ def main():
         )
 
     if len(sim_pairs) > 0:
-        print(f"- Similar feature pairs (|corr| >= {DEFAULT_SIM_THRESHOLD}):")
+        print(f"- Similar feature pairs (|corr| >= {Config.DEFAULT_SIM_THRESHOLD}):")
         print(f"  - Severity similarity: {sim_severity:.3f}")
         for _, r in sim_pairs.head(10).iterrows():
             print(f"  - {r['col_a']} <-> {r['col_b']}: |corr|={r['abs_corr']:.3f}")
@@ -321,34 +359,36 @@ def main():
     print("\n[cyan]📌 Distribution and interpretation[/cyan]")
     print("- High entropy means the distribution is more even/complex; it's not automatically 'noise', it can also be multimodal.")
     print("- High spread score means the data is more dispersed robustly compared to its central tendency.")
-    print("\n  Top entropy:")
+    print("\n  Top entropy (normalized 0-1):")
     for _, r in top_entropy.iterrows():
         print(
             f"  - {r['column']}: entropy={r['entropy']:.3f} "
             f"({r['entropy_label']})"
         )
 
-    print("\n  Top spread:")
+    print("\n  Top spread (normalized 0-1):")
     for _, r in top_spread.iterrows():
         print(
             f"  - {r['column']}: spread_score={r['spread_score']:.3f} "
             f"({r['spread_label']}), var={r['variance']:.3f}, iqr={r['iqr']:.3f}"
         )
     
-    print(f"\n[cyan]📌 Structure[/cyan]")
+    print(f"\n[cyan]📌 Relation and structure[/cyan]")
     print(f"- VIF mean (normalized): {vif['mean']:.3f} ({Help._label_from_score(vif['mean'])})")
     print(f"- VIF per-feature")
     for c in numeric_cols:
         print(f"  - {c}: VIF={vif['per_feature'][c]:.3f}")
+    print(f"- linear signal score: {linear_signal:.3f} ({Help._label_from_score(linear_signal, no_color=True)})")
     print(f"- sparsity: {sparsity:.3f} ({Help._label_from_score(sparsity)})")
-    print(f"- class imbalance ratio: {imbalance_rat:.3f} ({Help._label_from_score(imbalance_rat)})")
-    print(f"- class override ratio: {override_rat:.3f} ({Help._label_from_score(override_rat)})")
+    if task == 'classification':
+        print(f"- class imbalance ratio: {imbalance_rat:.3f} ({Help._label_from_score(imbalance_rat)})")
+        print(f"- class override ratio: {override_rat:.3f} ({Help._label_from_score(override_rat)})")
 
     print("\n[cyan]📌 Normality[/cyan]")
     print("- Shapiro-wilk and KS test score per-feature:")
     for c in numeric_cols:
         print(f"  - {c}: Shapiro={shapiro[c]:.3f} | KS={ks[c]:.3f}")
-    print(f"- normality score (based on skewness and kurtosis): {normality:.3f} ({Help._label_from_score(normality, ascending=True)})")
+    print(f"- Structure normality (based on skewness and kurtosis): {structure_normality:.3f} ({Help._label_from_score(structure_normality, ascending=True)})")
 
     print("\n[cyan]🧼 Cleanineess status[/cyan]")
     print(f"- cleanliness score: {cleanliness.overall:.3f} / 1.000")
@@ -362,4 +402,10 @@ def main():
     print(f"- avg entropy: {dist_df['entropy'].mean():.3f}")
     print(f"- avg spread score: {dist_df['spread_score'].mean():.3f}")
     
-    print(f"\n⏱️ Elapsed time: {time.time() - elapsed:.2f} seconds", "(including plot visualization)" if not args.no_plot else "")
+    print(f"\n⏱️ Elapsed time: {time.time() - elapsed:.2f} seconds")
+    print(f"\n❌ Exception(s) during process: {EXCEPTIONS.data}")
+    print(f"\n⚠️ Warning(s) during process: {WARNINGS.data}")
+
+    # plotting
+    if not args.no_plot:
+        PLT.plots(df, n_slice=args.plot_chunk, download_plot=args.download_plot)

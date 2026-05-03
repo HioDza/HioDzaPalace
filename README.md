@@ -1,9 +1,9 @@
-[![PyPI version](https://badge.fury.io/py/sancheck.svg)](https://pypi.org/project/sanitycheck-cli/)
+[![PyPI version](https://badge.fury.io/py/sancheck.svg)](https://pypi.org/project/sancheck/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/sancheck/blob/main/LICENSE)
 
 # sancheck
 
-`sancheck` is a minimal-tuning CLI tool for quickly assessing the statistical cleanliness of numeric columns in CSV datasets.  
+`sancheck` is a minimal-tuning CLI tool for quickly assessing the statistical overview of CSV datasets.  
 It provides a fast, high-level overview before deeper analysis or modeling.
 
 ## When should I use it?
@@ -20,16 +20,10 @@ It provides a fast, high-level overview before deeper analysis or modeling.
 Run the tool on a CSV file:
 
 ```bash
-sancheck [csv_dir] [target_column_name] [n_feature_per_plot or 'all']
+sancheck [csv_path] [target_col_name]
 ```
 
-## Example output
-
-### 📊 Boxplot visualization
-![Boxplot Example](assets/boxplot_numeric_columns(all_features).png)
-
-### 🔥 Heatmap visualization
-![Heatmap Example](assets/heatmap_correlation(all_features).png)
+## Example output with assets/data_example.csv
 
 ### 💬 Terminal output
 
@@ -37,6 +31,7 @@ sancheck [csv_dir] [target_column_name] [n_feature_per_plot or 'all']
 📊 Dataset Summary
 - Valid numeric columns: 5
 - Ignored non-numeric columns: 2
+- Inferred task type: classification
 
 📌 Column problems
 - Column with NaN/Inf/invalid: 0
@@ -71,31 +66,32 @@ sancheck [csv_dir] [target_column_name] [n_feature_per_plot or 'all']
   - row 7: score=0.555, invalid=False
 
 📌 Distribution and interpretation
-- High entropy means the distribution is more even/comple; it's not automatically 'noise', it can also be multimodal.
+- High entropy means the distribution is more even/complex; it's not automatically 'noise', it can also be multimodal.
 - High spread score means the data is more dispersed robustly compared to its central tendency.
 
-  Top entropy:
+  Top entropy (normalized 0-1):
   - math_score: entropy=0.960 (very spread / more uniform or complex distribution)
   - science_score: entropy=0.960 (very spread / more uniform or complex distribution)
   - total_score: entropy=0.960 (very spread / more uniform or complex distribution)
   - age: entropy=0.960 (very spread / more uniform or complex distribution)
   - english_score: entropy=0.859 (very spread / more uniform or complex distribution)
 
-  Top spread:
+  Top spread (normalized 0-1):
   - science_score: spread_score=0.562 (wide / large variation), var=0.006, iqr=0.092
   - total_score: spread_score=0.538 (wide / large variation), var=0.057, iqr=0.298
   - math_score: spread_score=0.528 (wide / large variation), var=0.007, iqr=0.108
   - english_score: spread_score=0.508 (wide / large variation), var=0.006, iqr=0.103
   - age: spread_score=0.503 (wide / large variation), var=2.222, iqr=2.000
 
-📌 Structure
-- VIF mean (normalized): 0.000 (low)
+📌 Relation and structure
+- VIF mean (normalized): 1.000 (very high)
 - VIF per-feature
   - math_score: VIF=inf
   - science_score: VIF=inf
   - english_score: VIF=inf
   - total_score: VIF=inf
-  - age: VIF=123.590
+  - age: VIF=inf
+- linear signal score: 1.000 (very high)
 - sparsity: 0.100 (low)
 - class imbalance ratio: 0.040 (low)
 - class override ratio: 0.000 (low)
@@ -107,7 +103,7 @@ sancheck [csv_dir] [target_column_name] [n_feature_per_plot or 'all']
   - english_score: Shapiro=0.746 | KS=0.987
   - total_score: Shapiro=0.912 | KS=0.975
   - age: Shapiro=0.341 | KS=0.925
-- normality score (based on skewness and kurtosis): 0.838 (very high)
+- Structure normality (based on skewness and kurtosis): 0.838 (very high)
 
 🧼 Cleanineess status
 - cleanliness score: 0.759 / 1.000
@@ -121,8 +117,22 @@ sancheck [csv_dir] [target_column_name] [n_feature_per_plot or 'all']
 - avg entropy: 0.940
 - avg spread score: 0.528
 
-⏱️ Elapsed time: 6.26 seconds (including plot visualization)
+⏱️ Elapsed time: 10.01 seconds
+
+❌ Exception(s) during process: []
+
+⚠️ Warning(s) during process: [{'type': 'RuntimeWarning', 'message': 'divide by zero encountered in scalar divide', 'where': 'compute_vif computation'}, 
+{'type': 'RuntimeWarning', 'message': 'divide by zero encountered in scalar divide', 'where': 'compute_vif computation'}, {'type': 'RuntimeWarning', 'message':
+'divide by zero encountered in scalar divide', 'where': 'compute_vif computation'}, {'type': 'RuntimeWarning', 'message': 'divide by zero encountered in scalar
+divide', 'where': 'compute_vif computation'}]
 ```
+
+### 📊 Boxplot visualization
+![Boxplot Example](assets/boxplot_numeric_columns(all_features).png)
+
+### 🔥 Heatmap visualization
+![Heatmap Example](assets/heatmap_correlation(all_features).png)
+
 
 ## Interpretation tips
 - Higher clarity scores indicate cleaner numeric data
